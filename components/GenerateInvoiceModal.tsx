@@ -22,8 +22,7 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
   
   // Invoice form fields
   const [invoicePrice, setInvoicePrice] = useState('')
-  const [invoiceCurrency, setInvoiceCurrency] = useState<'JPY' | 'LKR'>('LKR')
-  const [exchangeRate, setExchangeRate] = useState('')
+  const [financeAmount, setFinanceAmount] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
@@ -143,12 +142,8 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
         setInvoicePrice('')
       }
 
-      // Set default exchange rate if vehicle has JPY rates
-      if (selectedVehicle.invoice_jpy_to_lkr_rate) {
-        setExchangeRate(selectedVehicle.invoice_jpy_to_lkr_rate.toString())
-      } else {
-        setExchangeRate('')
-      }
+      // Reset finance amount
+      setFinanceAmount('')
     } catch (error: any) {
       console.error('Error loading vehicle data:', error)
     }
@@ -160,11 +155,7 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
 
   function calculateInvoicePriceLKR(): number {
     const price = parseFloat(invoicePrice) || 0
-    if (invoiceCurrency === 'JPY') {
-      const rate = parseFloat(exchangeRate) || 1
-      return price * rate
-    }
-    return price
+    return price // Only LKR is used
   }
 
   // Convert number to words (for invoice balance amount) - using millions format
@@ -241,10 +232,6 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
       return
     }
 
-    if (invoiceCurrency === 'JPY' && !exchangeRate) {
-      alert('Please enter exchange rate for JPY')
-      return
-    }
 
     setGenerating(true)
 
@@ -285,7 +272,7 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
       }
 
       // Generate invoice PDF
-      await generateInvoicePDF(invoicePriceLKR, totalAdvance)
+      await generateInvoicePDF(invoicePriceLKR, totalAdvance, parseFloat(financeAmount) || 0)
 
       // Reload vehicles to update list (this will remove the vehicle from the list)
       await loadVehicles()
@@ -303,7 +290,7 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
     }
   }
 
-  async function generateInvoicePDF(invoicePriceLKR: number, totalAdvance: number) {
+  async function generateInvoicePDF(invoicePriceLKR: number, totalAdvance: number, financeAmount: number = 0) {
     if (!selectedVehicle) return
 
     try {
@@ -461,45 +448,18 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
       pdf.line(20, currentY, 190, currentY)
       currentY += 8
 
-      // Advance Payments Table (Date and Amount, positioned as described)
-      const advanceTableStartY = currentY
-      if (totalAdvance > 0 && advancePayments.length > 0) {
-        // Date: same X as Seating Capacity label, then a little bit to the right
-        // Amount: a little bit to the right of Date
-        const dateX = labelStartX + 10 // A little bit to the right of Seating Capacity X
-        const amountX = dateX + 35 // A little bit to the right of Date
-        
-        pdf.setFont('helvetica', 'bold')
-        pdf.setFontSize(10)
-        advancePayments.forEach(payment => {
-          pdf.text(new Date(payment.paid_date).toLocaleDateString(), dateX, currentY)
-          pdf.text(formatCurrency(payment.amount_lkr), amountX, currentY)
-          currentY += 6
-        })
-        
-        // Total Advance (under advance payments, same X as Seating Capacity)
+      // Finance Amount (if provided, for printing only)
+      if (financeAmount > 0) {
         pdf.setFont('helvetica', 'bold')
         pdf.setFontSize(11)
-        pdf.text('Total Advance', labelStartX, currentY)
+        pdf.text('Finance Amount', labelStartX, currentY)
         pdf.text(':', colonX, currentY)
-        pdf.text(formatCurrency(totalAdvance), valueStartX, currentY)
+        pdf.text(formatCurrency(financeAmount), valueStartX, currentY)
         currentY += 8
       }
-
-      // Line separator after Total Advance (or after Unit Price if no advances)
-      pdf.line(20, currentY, 190, currentY)
-      currentY += 8
-
-      // Balance Settlement (below the line, same X as Seating Capacity)
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(11)
-      pdf.text('Balance Settlement', labelStartX, currentY)
-      pdf.text(':', colonX, currentY)
-      pdf.text(formatCurrency(balancePaid), valueStartX, currentY)
-      currentY += 8
       
       // Ensure minimum spacing before footer
-      currentY = Math.max(currentY, advanceTableStartY + 30) + 20
+      currentY += 20
 
       // Fill lower part of page with spacing
       const pageHeight = pdf.internal.pageSize.getHeight()
@@ -572,70 +532,39 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
         </div>
 
         <div className="card p-6 space-y-6" style={{ position: 'relative', zIndex: 1 }}>
-          {/* Invoice Price & Currency */}
+          {/* Invoice Price */}
           <div className="p-4 bg-amber-50 rounded-lg border border-amber-200" style={{ position: 'relative', zIndex: 1 }}>
             <h3 className="font-semibold text-amber-900 mb-3">Invoice Price *</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div style={{ position: 'relative', zIndex: 10 }}>
-                <label className="label">Currency *</label>
-                <select
-                  value={invoiceCurrency}
-                  onChange={(e) => {
-                    setInvoiceCurrency(e.target.value as 'JPY' | 'LKR')
-                    if (e.target.value === 'LKR') {
-                      setExchangeRate('')
-                    }
-                  }}
-                  className="input-field"
-                  style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'pointer' }}
-                >
-                  <option value="LKR">LKR (Sri Lankan Rupees)</option>
-                  <option value="JPY">JPY (Japanese Yen)</option>
-                </select>
-              </div>
-              <div style={{ position: 'relative', zIndex: 10 }}>
-                <label className="label">Invoice Price ({invoiceCurrency}) *</label>
-                <input
-                  type="number"
-                  value={invoicePrice}
-                  onChange={(e) => setInvoicePrice(e.target.value)}
-                  className="input-field"
-                  required
-                  placeholder={`Enter price in ${invoiceCurrency}`}
-                  style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
-                />
-              </div>
-              {invoiceCurrency === 'JPY' && (
-                <div className="col-span-2" style={{ position: 'relative', zIndex: 10 }}>
-                  <label className="label">Exchange Rate (JPY to LKR) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={exchangeRate}
-                    onChange={(e) => setExchangeRate(e.target.value)}
-                    className="input-field"
-                    required
-                    placeholder="Enter exchange rate"
-                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
-                  />
-                  <p className="text-xs text-stone-600 mt-1">Price in LKR: {formatCurrency(invoicePriceLKR)}</p>
-                </div>
-              )}
+            <div style={{ position: 'relative', zIndex: 10 }}>
+              <label className="label">Invoice Price (LKR) *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={invoicePrice}
+                onChange={(e) => setInvoicePrice(e.target.value)}
+                className="input-field"
+                required
+                placeholder="Enter price in LKR"
+                style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+              />
+            </div>
+            <div className="mt-4" style={{ position: 'relative', zIndex: 10 }}>
+              <label className="label">Finance Amount (LKR)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={financeAmount}
+                onChange={(e) => setFinanceAmount(e.target.value)}
+                className="input-field"
+                placeholder="Enter finance amount (for printing only)"
+                style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+              />
+              <p className="text-xs text-stone-600 mt-1">This amount is only for printing on the invoice, not saved to database.</p>
             </div>
             <div className="mt-3 p-3 bg-white rounded border border-amber-200">
               <div className="flex justify-between text-sm">
                 <span>Invoice Price (LKR):</span>
                 <span className="font-semibold">{formatCurrency(invoicePriceLKR)}</span>
-              </div>
-              {totalAdvance > 0 && (
-                <div className="flex justify-between text-sm mt-1">
-                  <span>Total Advance:</span>
-                  <span className="text-green-700">{formatCurrency(totalAdvance)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm mt-2 pt-2 border-t border-amber-200 font-semibold">
-                <span>Amount to be Paid:</span>
-                <span className="text-amber-700">{formatCurrency(balanceAfterAdvance)}</span>
               </div>
             </div>
           </div>
@@ -792,24 +721,6 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
             </div>
           </div>
 
-          {/* Advance Payments Summary */}
-          {totalAdvance > 0 && (
-            <div className="p-4 bg-stone-50 rounded-lg">
-              <h3 className="font-semibold mb-2">Advance Payments</h3>
-              <div className="space-y-1 text-sm">
-                {advancePayments.map(payment => (
-                  <div key={payment.id} className="flex justify-between">
-                    <span>{new Date(payment.paid_date).toLocaleDateString()}</span>
-                    <span>{formatCurrency(payment.amount_lkr)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between pt-2 border-t border-stone-300 font-semibold">
-                  <span>Total Advance:</span>
-                  <span className="text-green-700">{formatCurrency(totalAdvance)}</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Generate Button */}
           <div className="flex gap-4 pt-4">
