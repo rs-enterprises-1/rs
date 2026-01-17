@@ -44,7 +44,9 @@ export default function EditLocalCostsModal({
   useEffect(() => {
     if (lcCommissionAutoCalculated) {
       const calculated = invoiceLkrValue * 0.0035
-      setLcCommission(calculated > 0 ? calculated.toFixed(2) : '')
+      // Round to whole number (remove cents)
+      const rounded = Math.round(calculated)
+      setLcCommission(rounded > 0 ? rounded.toString() : '')
     }
   }, [invoiceLkrValue, lcCommissionAutoCalculated])
 
@@ -52,7 +54,9 @@ export default function EditLocalCostsModal({
   useEffect(() => {
     if (vehicle.local_extra1_label === 'LC Commission' || vehicle.local_extra1_label === '') {
       if (vehicle.local_extra1_lkr) {
-        setLcCommission(vehicle.local_extra1_lkr.toString())
+        // Round to whole number (remove cents)
+        const rounded = Math.round(vehicle.local_extra1_lkr)
+        setLcCommission(rounded.toString())
         setLcCommissionAutoCalculated(false)
       }
     }
@@ -60,7 +64,8 @@ export default function EditLocalCostsModal({
 
   function calculateRunningTotal(field: string): number {
     let total = base
-    const lcComm = parseFloat(lcCommission) || 0
+    // Round LC Commission to whole number (remove cents)
+    const lcComm = Math.round(parseFloat(lcCommission) || 0)
     const taxVal = parseFloat(tax) || 0
     const clearanceVal = parseFloat(clearance) || 0
     const transportVal = parseFloat(transport) || 0
@@ -91,7 +96,8 @@ export default function EditLocalCostsModal({
     setLoading(true)
     try {
       // Calculate local total - don't double-count LC Commission if it's in extra1
-      const lcCommVal = parseFloat(lcCommission) || 0
+      // Round LC Commission to whole number (remove cents)
+      const lcCommVal = Math.round(parseFloat(lcCommission) || 0)
       const extra1Val = (extra1Label && extra1Label !== 'LC Commission') ? (parseFloat(extra1Amount) || 0) : 0
       
       const localTotal = 
@@ -109,7 +115,8 @@ export default function EditLocalCostsModal({
       // Check original vehicle value, not state (in case user hasn't changed it)
       const originalExtra1Label = vehicle.local_extra1_label || ''
       const shouldSaveLcCommission = !originalExtra1Label || originalExtra1Label === 'LC Commission'
-      const lcCommValue = parseFloat(lcCommission) || 0
+      // Round LC Commission to whole number (remove cents)
+      const lcCommValue = Math.round(parseFloat(lcCommission) || 0)
 
       const { error } = await supabase
         .from('vehicles')
@@ -189,7 +196,7 @@ export default function EditLocalCostsModal({
                       setLcCommissionAutoCalculated(false)
                     }}
                     className="input-field"
-                    placeholder="Auto-calculated: Invoice LKR × 0.0035"
+                    placeholder="Auto-calculated: Invoice LKR × 0.0035 (rounded to whole number)"
                   />
                   {isAdmin && (
                     <div className="mt-2 text-sm text-slate-600">
@@ -201,7 +208,7 @@ export default function EditLocalCostsModal({
                   )}
                   {lcCommissionAutoCalculated && (
                     <p className="mt-1 text-xs text-slate-500">
-                      Auto-calculated: {formatCurrency(invoiceLkrValue)} × 0.0035 = {formatCurrency(invoiceLkrValue * 0.0035)}
+                      Auto-calculated: {formatCurrency(invoiceLkrValue)} × 0.0035 = {formatCurrency(Math.round(invoiceLkrValue * 0.0035))} (rounded)
                     </p>
                   )}
                 </div>

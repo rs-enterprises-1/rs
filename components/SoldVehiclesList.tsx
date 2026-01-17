@@ -771,21 +771,37 @@ export default function SoldVehiclesList({ user }: SoldVehiclesListProps) {
         currentY += 6
       }
       
-      // Load customer ID from advances table if available
-      let customerIdFromAdvance = ''
-      try {
-        const { data: advanceData } = await supabase
-          .from('advances')
-          .select('customer_id')
-          .eq('chassis_no', vehicle.chassis_no)
-          .maybeSingle()
-        if (advanceData && (advanceData as any).customer_id) {
-          customerIdFromAdvance = (advanceData as any).customer_id
-          pdf.text(`ID: ${customerIdFromAdvance}`, nameStartX, currentY)
-          currentY += 6
+      // Load customer ID - check transaction_details first, then sale record, then advances table
+      let customerIdToPrint = ''
+      
+      // First check transaction_details (most reliable source)
+      if (details?.customer_id) {
+        customerIdToPrint = details.customer_id
+      }
+      // Then check sale record
+      else if ((sale as any).customer_id) {
+        customerIdToPrint = (sale as any).customer_id
+      }
+      // Finally check advances table as fallback
+      else {
+        try {
+          const { data: advanceData } = await supabase
+            .from('advances')
+            .select('customer_id')
+            .eq('chassis_no', vehicle.chassis_no)
+            .maybeSingle()
+          if (advanceData && (advanceData as any).customer_id) {
+            customerIdToPrint = (advanceData as any).customer_id
+          }
+        } catch (err) {
+          // Ignore errors loading customer ID
         }
-      } catch (err) {
-        // Ignore errors loading customer ID
+      }
+      
+      // Print customer ID if available
+      if (customerIdToPrint) {
+        pdf.text(`ID: ${customerIdToPrint}`, nameStartX, currentY)
+        currentY += 6
       }
       
       currentY += 3

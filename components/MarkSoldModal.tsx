@@ -18,7 +18,7 @@ interface MarkSoldModalProps {
 }
 
 type DocumentType = 'transaction' | null
-type PaymentMethod = 'cash' | 'cheque' | 'both' | null
+type PaymentMethod = 'cash' | 'cheque' | 'both' | 'bank_transfer' | null
 
 export default function MarkSoldModal({
   vehicle,
@@ -33,6 +33,7 @@ export default function MarkSoldModal({
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerId, setCustomerId] = useState('')
   const [soldPrice, setSoldPrice] = useState('')
   const [soldDate, setSoldDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
@@ -51,6 +52,10 @@ export default function MarkSoldModal({
   const [cash1000, setCash1000] = useState('')
   const [cash500, setCash500] = useState('')
   const [cash100, setCash100] = useState('')
+  const [bankTransferDepositDate, setBankTransferDepositDate] = useState(new Date().toISOString().split('T')[0])
+  const [bankTransferBankName, setBankTransferBankName] = useState('')
+  const [bankTransferAccNo, setBankTransferAccNo] = useState('')
+  const [bankTransferAmount, setBankTransferAmount] = useState('')
   const [registration, setRegistration] = useState('')
   const [valuation, setValuation] = useState('')
   const [rLicence, setRLicence] = useState('')
@@ -110,12 +115,14 @@ export default function MarkSoldModal({
         setCustomerName(advance.customer_name)
         setCustomerPhone(advance.customer_phone || '')
         setCustomerAddress(advance.customer_address || '')
+        setCustomerId((advance as any).customer_id || '')
         setSoldPrice(advance.expected_sell_price_lkr.toString())
       } else {
         setExistingAdvance(null)
         setCustomerName('')
         setCustomerPhone('')
         setCustomerAddress('')
+        setCustomerId('')
         setSoldPrice('')
       }
 
@@ -216,6 +223,7 @@ export default function MarkSoldModal({
     if (paymentMethod === 'cash') return calculateCashTotal()
     if (paymentMethod === 'cheque') return calculateChequeTotal()
     if (paymentMethod === 'both') return calculateCashTotal() + calculateChequeTotal()
+    if (paymentMethod === 'bank_transfer') return parseFloat(bankTransferAmount) || 0
     return 0
   }
 
@@ -259,6 +267,12 @@ export default function MarkSoldModal({
           return
         }
       }
+      if (paymentMethod === 'bank_transfer') {
+        if (!bankTransferDepositDate || !bankTransferBankName || !bankTransferAccNo || !bankTransferAmount) {
+          alert('Please fill in all bank transfer details (Deposit Date, Bank Name, Account Number, Amount)')
+          return
+        }
+      }
     }
 
     setLoading(true)
@@ -282,6 +296,7 @@ export default function MarkSoldModal({
           customer_name: customerName,
           customer_address: customerAddress || null,
           customer_phone: customerPhone || null,
+          customer_id: customerId?.trim() || null,
         })
         .select()
         .single()
@@ -301,6 +316,7 @@ export default function MarkSoldModal({
             customer_name: customerName,
             customer_phone: customerPhone || null,
             customer_address: customerAddress || null,
+            customer_id: customerId?.trim() || null,
             lease_company: documentType === 'transaction' && hasLeasing ? leaseCompany : null,
             lease_amount: documentType === 'transaction' && hasLeasing ? (parseFloat(leaseAmount) || null) : null,
             payment_method: documentType === 'transaction' ? paymentMethod : null,
@@ -313,6 +329,10 @@ export default function MarkSoldModal({
             cash_1000: parseInt(cash1000) || 0,
             cash_500: parseInt(cash500) || 0,
             cash_100: parseInt(cash100) || 0,
+            bank_transfer_deposit_date: paymentMethod === 'bank_transfer' ? bankTransferDepositDate : null,
+            bank_transfer_bank_name: paymentMethod === 'bank_transfer' ? bankTransferBankName : null,
+            bank_transfer_acc_no: paymentMethod === 'bank_transfer' ? bankTransferAccNo : null,
+            bank_transfer_amount: paymentMethod === 'bank_transfer' ? parseFloat(bankTransferAmount) : null,
             registration: parseFloat(registration) || 0,
             valuation: parseFloat(valuation) || 0,
             r_licence: parseFloat(rLicence) || 0,
@@ -630,21 +650,10 @@ export default function MarkSoldModal({
         currentY += 6
       }
       
-      // Load customer ID from advances table if available
-      let customerIdFromAdvance = ''
-      try {
-        const { data: advanceData } = await supabase
-          .from('advances')
-          .select('customer_id')
-          .eq('chassis_no', vehicle.chassis_no)
-          .maybeSingle()
-        if (advanceData && (advanceData as any).customer_id) {
-          customerIdFromAdvance = (advanceData as any).customer_id
-          pdf.text(`ID: ${customerIdFromAdvance}`, nameStartX, currentY)
-          currentY += 6
-        }
-      } catch (err) {
-        // Ignore errors loading customer ID
+      // Print customer ID if available
+      if (customerId) {
+        pdf.text(`ID: ${customerId}`, nameStartX, currentY)
+        currentY += 6
       }
       
       currentY += 3
@@ -759,77 +768,99 @@ export default function MarkSoldModal({
       pdf.line(20, currentY, 190, currentY)
       currentY += 8
 
-      // Two-column layout: Cheque on Left, Cash on Right
-      const leftX = 20
-      const rightX = 110
-      let leftY = currentY
-      let rightY = currentY
-      let maxY = currentY
-
-      // Left column: Cheque Details (with labels)
-      const hasCheque1 = cheque1No && cheque1Amount && parseFloat(cheque1Amount) > 0
-      const hasCheque2 = cheque2No && cheque2Amount && parseFloat(cheque2Amount) > 0
-      
-      if ((paymentMethod === 'cheque' || paymentMethod === 'both') && (hasCheque1 || hasCheque2)) {
+      // Payment Details Section
+      if (paymentMethod === 'bank_transfer') {
+        // Bank Transfer Details (single column)
         pdf.setFont('helvetica', 'bold')
         pdf.setFontSize(10)
-        pdf.text('Cheque Details:', leftX, leftY)
-        leftY += 8
-        
-        // Add labels for Cheque No and Amount
-        pdf.setFont('helvetica', 'bold')
-        pdf.setFontSize(9)
-        pdf.text('Cheque No:', leftX, leftY)
-        pdf.text('Amount:', leftX + 50, leftY)
-        leftY += 6
+        pdf.text('Bank Transfer Details:', labelStartX, currentY)
+        currentY += 8
         
         pdf.setFont('helvetica', 'normal')
         pdf.setFontSize(9)
-        if (hasCheque1) {
-          pdf.text(`${cheque1No}`, leftX, leftY)
-          pdf.text(`${formatCurrency(parseFloat(cheque1Amount))}`, leftX + 50, leftY)
-          leftY += 6
-        }
-        if (hasCheque2) {
-          pdf.text(`${cheque2No}`, leftX, leftY)
-          pdf.text(`${formatCurrency(parseFloat(cheque2Amount))}`, leftX + 50, leftY)
-          leftY += 6
-        }
-        leftY += 2
-        if (leftY > maxY) maxY = leftY
-      }
-
-      // Right column: Cash Details
-      const cashDenominations = [
-        { label: '5000', value: cash5000 },
-        { label: '2000', value: cash2000 },
-        { label: '1000', value: cash1000 },
-        { label: '500', value: cash500 },
-        { label: '100', value: cash100 },
-      ]
-      
-      const hasCash = cashDenominations.some(denom => denom.value && parseFloat(denom.value) > 0)
-      
-      if ((paymentMethod === 'cash' || paymentMethod === 'both') && hasCash) {
+        pdf.text(`Deposit Date: ${new Date(bankTransferDepositDate).toLocaleDateString()}`, labelStartX, currentY)
+        currentY += 6
+        pdf.text(`Bank Name: ${bankTransferBankName}`, labelStartX, currentY)
+        currentY += 6
+        pdf.text(`Account Number: ${bankTransferAccNo}`, labelStartX, currentY)
+        currentY += 6
         pdf.setFont('helvetica', 'bold')
         pdf.setFontSize(10)
-        pdf.text('Cash Details:', rightX, rightY)
-        rightY += 6
-        pdf.setFont('helvetica', 'normal')
-        pdf.setFontSize(9)
+        pdf.text(`Amount: ${formatCurrency(parseFloat(bankTransferAmount) || 0)}`, labelStartX, currentY)
+        currentY += 8
+      } else {
+        // Two-column layout: Cheque on Left, Cash on Right
+        const leftX = 20
+        const rightX = 110
+        let leftY = currentY
+        let rightY = currentY
+        let maxY = currentY
+
+        // Left column: Cheque Details (with labels)
+        const hasCheque1 = cheque1No && cheque1Amount && parseFloat(cheque1Amount) > 0
+        const hasCheque2 = cheque2No && cheque2Amount && parseFloat(cheque2Amount) > 0
         
-        cashDenominations.forEach(denom => {
-          if (denom.value && parseFloat(denom.value) > 0) {
-            const qty = parseFloat(denom.value)
-            const amount = qty * parseFloat(denom.label)
-            pdf.text(`${denom.label} x ${qty} = ${formatCurrency(amount)}`, rightX, rightY)
-            rightY += 6
+        if ((paymentMethod === 'cheque' || paymentMethod === 'both') && (hasCheque1 || hasCheque2)) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(10)
+          pdf.text('Cheque Details:', leftX, leftY)
+          leftY += 8
+          
+          // Add labels for Cheque No and Amount
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(9)
+          pdf.text('Cheque No:', leftX, leftY)
+          pdf.text('Amount:', leftX + 50, leftY)
+          leftY += 6
+          
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(9)
+          if (hasCheque1) {
+            pdf.text(`${cheque1No}`, leftX, leftY)
+            pdf.text(`${formatCurrency(parseFloat(cheque1Amount))}`, leftX + 50, leftY)
+            leftY += 6
           }
-        })
-        if (rightY > maxY) maxY = rightY
-      }
+          if (hasCheque2) {
+            pdf.text(`${cheque2No}`, leftX, leftY)
+            pdf.text(`${formatCurrency(parseFloat(cheque2Amount))}`, leftX + 50, leftY)
+            leftY += 6
+          }
+          leftY += 2
+          if (leftY > maxY) maxY = leftY
+        }
 
-      currentY = maxY + 8
+        // Right column: Cash Details
+        const cashDenominations = [
+          { label: '5000', value: cash5000 },
+          { label: '2000', value: cash2000 },
+          { label: '1000', value: cash1000 },
+          { label: '500', value: cash500 },
+          { label: '100', value: cash100 },
+        ]
+        
+        const hasCash = cashDenominations.some(denom => denom.value && parseFloat(denom.value) > 0)
+        
+        if ((paymentMethod === 'cash' || paymentMethod === 'both') && hasCash) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(10)
+          pdf.text('Cash Details:', rightX, rightY)
+          rightY += 6
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(9)
+          
+          cashDenominations.forEach(denom => {
+            if (denom.value && parseFloat(denom.value) > 0) {
+              const qty = parseFloat(denom.value)
+              const amount = qty * parseFloat(denom.label)
+              pdf.text(`${denom.label} x ${qty} = ${formatCurrency(amount)}`, rightX, rightY)
+              rightY += 6
+            }
+          })
+          if (rightY > maxY) maxY = rightY
+        }
+
+        currentY = maxY + 8
+      }
 
       // Other Charges
       if (otherCharges > 0) {
@@ -1247,6 +1278,20 @@ export default function MarkSoldModal({
                           />
                           <p className="text-xs text-stone-500 mt-1">Enter address parts separated by commas</p>
                         </div>
+                        <div style={{ position: 'relative', zIndex: 10 }}>
+                          <label className="label">Customer ID</label>
+                          <input
+                            type="text"
+                            value={customerId}
+                            onChange={(e) => setCustomerId(e.target.value)}
+                            className="input-field"
+                            placeholder="Enter customer ID"
+                            style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                          />
+                          {existingAdvance && customerId && (
+                            <p className="text-xs text-stone-500 mt-1">Loaded from advance payment record</p>
+                          )}
+                        </div>
                       </>
                     )}
 
@@ -1369,7 +1414,7 @@ export default function MarkSoldModal({
                           <h3 className="font-semibold text-stone-800 mb-4">Balance Settlement</h3>
                           <div className="mb-4">
                             <label className="label">Payment Method *</label>
-                            <div className="grid grid-cols-3 gap-3 mt-2">
+                            <div className="grid grid-cols-2 gap-3 mt-2">
                               <button
                                 type="button"
                                 onClick={() => setPaymentMethod('cash')}
@@ -1402,6 +1447,17 @@ export default function MarkSoldModal({
                                 }`}
                               >
                                 Both
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentMethod('bank_transfer')}
+                                className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                                  paymentMethod === 'bank_transfer'
+                                    ? 'bg-amber-100 border-amber-500 text-amber-900'
+                                    : 'bg-white border-stone-300 text-stone-700 hover:border-amber-300'
+                                }`}
+                              >
+                                Bank Transfer
                               </button>
                             </div>
                           </div>
@@ -1516,6 +1572,62 @@ export default function MarkSoldModal({
                               </div>
                               <div className="mt-2 text-sm text-stone-600">
                                 Total Cash: <span className="font-semibold">{formatCurrency(calculateCashTotal())}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {paymentMethod === 'bank_transfer' && (
+                            <div className="mb-4 p-4 bg-stone-50 rounded-lg">
+                              <h4 className="font-semibold mb-3">Bank Transfer Details</h4>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div style={{ position: 'relative', zIndex: 10 }}>
+                                  <label className="label text-sm">Deposit Date *</label>
+                                  <input
+                                    type="date"
+                                    value={bankTransferDepositDate}
+                                    onChange={(e) => setBankTransferDepositDate(e.target.value)}
+                                    className="input-field"
+                                    required
+                                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                                  />
+                                </div>
+                                <div style={{ position: 'relative', zIndex: 10 }}>
+                                  <label className="label text-sm">Bank Name *</label>
+                                  <input
+                                    type="text"
+                                    value={bankTransferBankName}
+                                    onChange={(e) => setBankTransferBankName(e.target.value)}
+                                    className="input-field"
+                                    required
+                                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                                  />
+                                </div>
+                                <div style={{ position: 'relative', zIndex: 10 }}>
+                                  <label className="label text-sm">Account Number *</label>
+                                  <input
+                                    type="text"
+                                    value={bankTransferAccNo}
+                                    onChange={(e) => setBankTransferAccNo(e.target.value)}
+                                    className="input-field"
+                                    required
+                                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                                  />
+                                </div>
+                                <div style={{ position: 'relative', zIndex: 10 }}>
+                                  <label className="label text-sm">Amount *</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={bankTransferAmount}
+                                    onChange={(e) => setBankTransferAmount(e.target.value)}
+                                    className="input-field"
+                                    required
+                                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-2 text-sm text-stone-600">
+                                Total Bank Transfer: <span className="font-semibold">{formatCurrency(parseFloat(bankTransferAmount) || 0)}</span>
                               </div>
                             </div>
                           )}
