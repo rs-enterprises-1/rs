@@ -69,6 +69,22 @@ export default function AvailableVehiclesList({ user }: AvailableVehiclesListPro
     return tax + clearance + transport + extra1 + extra2 + extra3
   }
 
+  function hasLocalCostsEntered(vehicle: Vehicle): boolean {
+    // Check if any local costs are entered, excluding LC Commission (which is auto-filled)
+    const tax = vehicle.tax_lkr || 0
+    const clearance = vehicle.clearance_lkr || 0
+    const transport = vehicle.transport_lkr || 0
+    
+    // Check extra1 only if it's NOT LC Commission
+    const extra1Label = vehicle.local_extra1_label || ''
+    const extra1 = (extra1Label === 'LC Commission' || extra1Label === '') ? 0 : (vehicle.local_extra1_lkr || 0)
+    
+    const extra2 = vehicle.local_extra2_lkr || 0
+    const extra3 = vehicle.local_extra3_lkr || 0
+    
+    return tax > 0 || clearance > 0 || transport > 0 || extra1 > 0 || extra2 > 0 || extra3 > 0
+  }
+
   function calculateCombinedTotal(vehicle: Vehicle): number {
     const japanTotal = vehicle.japan_total_lkr || 0
     const localTotal = calculateLocalTotal(vehicle)
@@ -338,7 +354,7 @@ export default function AvailableVehiclesList({ user }: AvailableVehiclesListPro
                 transition={{ delay: index * 0.1 }}
                 className="card p-6 hover:shadow-xl transition-all duration-300"
               >
-                <div className="space-y-4">
+                <div className="space-y-4 relative">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-slate-800">
@@ -377,15 +393,26 @@ export default function AvailableVehiclesList({ user }: AvailableVehiclesListPro
                         </div>
                       )}
                     </div>
-                    {isAdmin(user) && (
-                      <button
-                        onClick={() => handleDeleteVehicle(vehicle)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300"
-                        title="Delete Vehicle"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* Japan Flag indicator when no local costs (excluding LC Commission) */}
+                      {!hasLocalCostsEntered(vehicle) && (
+                        <div className="w-12 h-8 flex items-center justify-center border-2 border-black" title="No local costs entered (excluding LC Commission)">
+                          <svg width="32" height="20" viewBox="0 0 32 20" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="20" fill="#ffffff"/>
+                            <circle cx="16" cy="10" r="5" fill="#bc002d"/>
+                          </svg>
+                        </div>
+                      )}
+                      {isAdmin(user) && (
+                        <button
+                          onClick={() => handleDeleteVehicle(vehicle)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                          title="Delete Vehicle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {isAdmin(user) && (

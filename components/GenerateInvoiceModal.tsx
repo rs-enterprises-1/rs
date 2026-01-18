@@ -28,6 +28,11 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
   const [customerAddress, setCustomerAddress] = useState('')
   const [bankName, setBankName] = useState('')
   const [bankAddress, setBankAddress] = useState('')
+  const [hasBank, setHasBank] = useState(false)
+  const [bankNameDetail, setBankNameDetail] = useState('')
+  const [bankBranch, setBankBranch] = useState('')
+  const [bankAccNo, setBankAccNo] = useState('')
+  const [bankOwnerName, setBankOwnerName] = useState('')
   const [engineNo, setEngineNo] = useState('')
   const [engineCapacity, setEngineCapacity] = useState('')
   const [color, setColor] = useState('')
@@ -483,6 +488,84 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
       pdf.setFontSize(10)
       pdf.text('Authorized Signature', 20, currentY)
 
+      // Add 2nd page with bank details if provided
+      if (hasBank && (bankNameDetail || bankBranch || bankAccNo || bankOwnerName)) {
+        pdf.addPage()
+        
+        // Same heading on 2nd page
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(24)
+        pdf.text('R.S.Enterprises', 105, 20, { align: 'center' })
+
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(10)
+        pdf.text('No.164/B,Nittambuwa Road,Paththalagedara,Veyangoda', 105, 28, { align: 'center' })
+        pdf.text('Tel: 0773073156,0332245886', 105, 34, { align: 'center' })
+        pdf.text('Email : rsenterprises59@gmail.com', 105, 40, { align: 'center' })
+
+        // Line separator
+        pdf.line(20, 45, 190, 45)
+
+        // INVOICE title (middle)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(18)
+        pdf.text('INVOICE', 105, 55, { align: 'center' })
+
+        // Line separator
+        pdf.line(20, 65, 190, 65)
+
+        // Bank Details heading
+        let bankY = 75
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(12)
+        pdf.text('Bank Details', 105, bankY, { align: 'center' })
+        bankY += 10
+
+        // Bank Details
+        const labelStartX = 20
+        const colonX = 80
+        const valueStartX = 90
+
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(10)
+
+        if (bankNameDetail) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.text('Bank Name', labelStartX, bankY)
+          pdf.text(':', colonX, bankY)
+          pdf.setFont('helvetica', 'normal')
+          pdf.text(bankNameDetail, valueStartX, bankY)
+          bankY += 6
+        }
+
+        if (bankBranch) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.text('Branch', labelStartX, bankY)
+          pdf.text(':', colonX, bankY)
+          pdf.setFont('helvetica', 'normal')
+          pdf.text(bankBranch, valueStartX, bankY)
+          bankY += 6
+        }
+
+        if (bankAccNo) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.text('Account Number', labelStartX, bankY)
+          pdf.text(':', colonX, bankY)
+          pdf.setFont('helvetica', 'normal')
+          pdf.text(bankAccNo, valueStartX, bankY)
+          bankY += 6
+        }
+
+        if (bankOwnerName) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.text('Owner Name', labelStartX, bankY)
+          pdf.text(':', colonX, bankY)
+          pdf.setFont('helvetica', 'normal')
+          pdf.text(bankOwnerName, valueStartX, bankY)
+          bankY += 6
+        }
+      }
+
       // Save PDF
       pdf.save(`Invoice-${selectedVehicle.chassis_no}-${Date.now()}.pdf`)
     } catch (error: any) {
@@ -719,6 +802,79 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
                 />
               </div>
             </div>
+          </div>
+
+          {/* Bank? Checkbox and BNL Details */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200" style={{ position: 'relative', zIndex: 1 }}>
+            <div className="flex items-center gap-3 mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasBank}
+                  onChange={(e) => {
+                    setHasBank(e.target.checked)
+                    if (!e.target.checked) {
+                      setBankNameDetail('')
+                      setBankBranch('')
+                      setBankAccNo('')
+                      setBankOwnerName('')
+                    }
+                  }}
+                  className="w-5 h-5 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                  style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                />
+                <span className="font-semibold text-blue-900">Bank?</span>
+              </label>
+            </div>
+
+            {hasBank && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                  <label className="label">Bank Name</label>
+                  <input
+                    type="text"
+                    value={bankNameDetail}
+                    onChange={(e) => setBankNameDetail(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter bank name"
+                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                  />
+                </div>
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                  <label className="label">Branch</label>
+                  <input
+                    type="text"
+                    value={bankBranch}
+                    onChange={(e) => setBankBranch(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter branch"
+                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                  />
+                </div>
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                  <label className="label">Account Number</label>
+                  <input
+                    type="text"
+                    value={bankAccNo}
+                    onChange={(e) => setBankAccNo(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter account number"
+                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                  />
+                </div>
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                  <label className="label">Owner Name</label>
+                  <input
+                    type="text"
+                    value={bankOwnerName}
+                    onChange={(e) => setBankOwnerName(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter owner name"
+                    style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
 

@@ -29,6 +29,10 @@ export default function AddAdvanceModal({
   const [customerId, setCustomerId] = useState('')
   const [sellingPrice, setSellingPrice] = useState('')
   const [todayAmount, setTodayAmount] = useState('')
+  const [bankTransferred, setBankTransferred] = useState(false)
+  const [bankAccNo, setBankAccNo] = useState('')
+  const [bankTransferDate, setBankTransferDate] = useState(new Date().toISOString().split('T')[0])
+  const [bankName, setBankName] = useState('')
   const [loading, setLoading] = useState(false)
   const [isFirstAdvance, setIsFirstAdvance] = useState(true)
 
@@ -173,6 +177,10 @@ export default function AddAdvanceModal({
           chassis_no: vehicle.chassis_no,
           paid_date: new Date().toISOString().split('T')[0],
           amount_lkr: parseFloat(todayAmount),
+          bank_transferred: bankTransferred,
+          bank_acc_no: bankTransferred ? bankAccNo?.trim() || null : null,
+          bank_transfer_date: bankTransferred ? bankTransferDate : null,
+          bank_name: bankTransferred ? bankName?.trim() || null : null,
         })
 
       if (paymentError) throw paymentError
@@ -180,8 +188,14 @@ export default function AddAdvanceModal({
       // Generate receipt
       const printReceipt = confirm('Print Advance Receipt?')
       if (printReceipt) {
-        await generateReceipt()
+        await generateReceipt(bankTransferred, bankAccNo, bankTransferDate, bankName)
       }
+
+      // Reset bank transfer fields
+      setBankTransferred(false)
+      setBankAccNo('')
+      setBankTransferDate(new Date().toISOString().split('T')[0])
+      setBankName('')
 
       onSave()
       onClose()
@@ -230,7 +244,12 @@ export default function AddAdvanceModal({
     }
   }
 
-  async function generateReceipt() {
+  async function generateReceipt(
+    isBankTransferred: boolean = false,
+    accNo: string = '',
+    transferDate: string = '',
+    bank: string = ''
+  ) {
     try {
       const totalAdvance = calculateTotalAdvance()
       const remaining = parseFloat(sellingPrice) - totalAdvance
@@ -367,16 +386,47 @@ export default function AddAdvanceModal({
           paid_date: new Date().toISOString().split('T')[0],
           amount_lkr: parseFloat(todayAmount),
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as AdvancePayment)
+          updated_at: new Date().toISOString(),
+          bank_transferred: isBankTransferred,
+          bank_acc_no: accNo,
+          bank_transfer_date: transferDate,
+          bank_name: bank
+        } as any)
       }
       
       pdf.setFont('helvetica', 'bold')
       pdf.setFontSize(10)
       allPayments.forEach(payment => {
-        pdf.text(new Date(payment.paid_date).toLocaleDateString(), dateX, currentY)
+        const paymentDate = new Date(payment.paid_date).toLocaleDateString()
+        pdf.text(paymentDate, dateX, currentY)
         pdf.text(formatCurrency(payment.amount_lkr), amountX, currentY)
         currentY += 6
+        
+        // Print bank transfer details if applicable
+        const paymentBankTransferred = (payment as any).bank_transferred || false
+        if (paymentBankTransferred) {
+          const paymentAccNo = (payment as any).bank_acc_no || ''
+          const paymentTransferDate = (payment as any).bank_transfer_date || ''
+          const paymentBankName = (payment as any).bank_name || ''
+          
+          if (paymentAccNo || paymentTransferDate || paymentBankName) {
+            pdf.setFont('helvetica', 'normal')
+            pdf.setFontSize(9)
+            if (paymentBankName) {
+              pdf.text(`  Bank: ${paymentBankName}`, dateX, currentY)
+              currentY += 5
+            }
+            if (paymentAccNo) {
+              pdf.text(`  Acc No: ${paymentAccNo}`, dateX, currentY)
+              currentY += 5
+            }
+            if (paymentTransferDate) {
+              pdf.text(`  Date: ${new Date(paymentTransferDate).toLocaleDateString()}`, dateX, currentY)
+              currentY += 5
+            }
+            pdf.setFont('helvetica', 'bold')
+          }
+        }
       })
       
       currentY += 6
@@ -562,6 +612,64 @@ export default function AddAdvanceModal({
                     placeholder="Enter amount"
                     required
                   />
+                </div>
+
+                {/* Bank Transfer Section */}
+                <div className="border-t border-stone-200 pt-4">
+                  <label className="flex items-center gap-2 cursor-pointer mb-4">
+                    <input
+                      type="checkbox"
+                      checked={bankTransferred}
+                      onChange={(e) => {
+                        setBankTransferred(e.target.checked)
+                        if (!e.target.checked) {
+                          setBankAccNo('')
+                          setBankTransferDate(new Date().toISOString().split('T')[0])
+                          setBankName('')
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                      style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                    />
+                    <span className="font-semibold text-stone-800">Bank Transferred</span>
+                  </label>
+
+                  {bankTransferred && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                      <div style={{ position: 'relative', zIndex: 10 }}>
+                        <label className="label">Bank Name</label>
+                        <input
+                          type="text"
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          className="input-field"
+                          style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                          placeholder="Enter bank name"
+                        />
+                      </div>
+                      <div style={{ position: 'relative', zIndex: 10 }}>
+                        <label className="label">Account Number</label>
+                        <input
+                          type="text"
+                          value={bankAccNo}
+                          onChange={(e) => setBankAccNo(e.target.value)}
+                          className="input-field"
+                          style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                          placeholder="Enter account number"
+                        />
+                      </div>
+                      <div style={{ position: 'relative', zIndex: 10 }}>
+                        <label className="label">Transfer Date</label>
+                        <input
+                          type="date"
+                          value={bankTransferDate}
+                          onChange={(e) => setBankTransferDate(e.target.value)}
+                          className="input-field"
+                          style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative', cursor: 'text' }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {sellingPrice && (
