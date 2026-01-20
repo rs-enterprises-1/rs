@@ -194,22 +194,18 @@ export default function AddVehicleForm({ user }: AddVehicleFormProps) {
 
       console.log('Saving vehicle data:', vehicleData)
 
-      // Check if vehicle already exists
+      // Check if vehicle already exists (available or sold)
       const { data: existingVehicle } = await supabase
         .from('vehicles')
-        .select('chassis_no')
-        .eq('chassis_no', chassisNo)
+        .select('chassis_no, status')
+        .eq('chassis_no', chassisNo.trim())
         .maybeSingle()
 
       let result
       if (existingVehicle) {
-        // Update existing vehicle
-        const { error, data } = await supabase
-          .from('vehicles')
-          .update(vehicleData)
-          .eq('chassis_no', chassisNo)
-          .select()
-        result = { error, data }
+        alert(`Chassis already exists (${(existingVehicle as any).status || 'unknown'}).`)
+        setLoading(false)
+        return
       } else {
         // Insert new vehicle
         const { error, data } = await supabase

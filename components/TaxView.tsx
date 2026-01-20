@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { User } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { Search, Printer, Trash2, FileText } from 'lucide-react'
+import { Search, Printer, Trash2, List } from 'lucide-react'
 import jsPDF from 'jspdf'
 
 interface Vehicle {
@@ -51,6 +51,7 @@ export default function TaxView({ user }: TaxViewProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [taxDetail, setTaxDetail] = useState<TaxDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingAvailable, setLoadingAvailable] = useState(false)
 
   // Tax calculation fields
   const [totalCostLkr, setTotalCostLkr] = useState('')
@@ -128,6 +129,39 @@ export default function TaxView({ user }: TaxViewProps) {
       alert(`Error: ${error.message}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadAvailableVehicles() {
+    setLoadingAvailable(true)
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('chassis_no, maker, model, status, final_total_lkr, japan_total_lkr, undial_amount_jpy, undial_jpy_to_lkr_rate, tax_lkr, clearance_lkr, transport_lkr, local_extra1_lkr, local_extra2_lkr, local_extra3_lkr')
+        .eq('status', 'available')
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error) throw error
+
+      const chassisNos = (data || []).map(v => v.chassis_no)
+      const { data: taxDetails } = await supabase
+        .from('tax_details')
+        .select('chassis_no')
+        .in('chassis_no', chassisNos)
+
+      const taxChassisNos = new Set(taxDetails?.map(t => t.chassis_no) || [])
+      const vehiclesWithTaxStatus = (data || []).map(v => ({
+        ...v,
+        hasTaxDetail: taxChassisNos.has(v.chassis_no)
+      }))
+
+      setVehicles(vehiclesWithTaxStatus as any)
+    } catch (error: any) {
+      console.error('Error loading available vehicles:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setLoadingAvailable(false)
     }
   }
 
@@ -388,6 +422,17 @@ export default function TaxView({ user }: TaxViewProps) {
             >
               <Search className="w-4 h-4" />
               Search
+            </button>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={loadAvailableVehicles}
+              disabled={loadingAvailable}
+              className="btn-secondary flex items-center gap-2"
+              title="Show available vehicles"
+            >
+              <List className="w-4 h-4" />
+              {loadingAvailable ? 'Loading...' : 'Available'}
             </button>
           </div>
         </div>

@@ -34,11 +34,11 @@ CREATE POLICY "Users can update their own expenses" ON expenses
   USING (created_by = auth.uid())
   WITH CHECK (created_by = auth.uid());
 
--- Policy: Users can delete their own expenses
-DROP POLICY IF EXISTS "Users can delete their own expenses" ON expenses;
-CREATE POLICY "Users can delete their own expenses" ON expenses
+-- Policy: Authenticated users can delete expenses (they can delete their own)
+DROP POLICY IF EXISTS "Authenticated users can delete expenses" ON expenses;
+CREATE POLICY "Authenticated users can delete expenses" ON expenses
   FOR DELETE
-  USING (created_by = auth.uid());
+  USING (auth.uid() IS NOT NULL);
 
 -- Create index for filtering by date
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
