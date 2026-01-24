@@ -26,6 +26,7 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerId, setCustomerId] = useState('')
   const [bankName, setBankName] = useState('')
   const [bankAddress, setBankAddress] = useState('')
   const [engineNo, setEngineNo] = useState('')
@@ -111,11 +112,13 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
         setCustomerName(advance.customer_name)
         setCustomerPhone(advance.customer_phone || '')
         setCustomerAddress(advance.customer_address || '')
+        setCustomerId((advance as any).customer_id || '')
       } else {
         setExistingAdvance(null)
         setCustomerName('')
         setCustomerPhone('')
         setCustomerAddress('')
+        setCustomerId('')
       }
 
       // Load advance payments
@@ -366,6 +369,10 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
         pdf.text(line, invoiceNoX, customerY)
         customerY += 6
       })
+      if (customerId) {
+        pdf.text(`ID: ${customerId}`, invoiceNoX, customerY)
+        customerY += 6
+      }
 
       // Line separator
       const maxY = Math.max(bankY, customerY) + 3
@@ -617,6 +624,20 @@ export default function GenerateInvoiceModal({ user }: GenerateInvoiceModalProps
                   placeholder="Enter address, separated by comma"
                   style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
                 />
+              </div>
+              <div style={{ position: 'relative', zIndex: 10 }}>
+                <label className="label">Customer ID</label>
+                <input
+                  type="text"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  className="input-field"
+                  placeholder="Enter customer ID"
+                  style={{ pointerEvents: 'auto', zIndex: 10, position: 'relative' }}
+                />
+                {existingAdvance && customerId && (
+                  <p className="text-xs text-stone-500 mt-1">Loaded from advance payment record</p>
+                )}
               </div>
             </div>
           </div>
